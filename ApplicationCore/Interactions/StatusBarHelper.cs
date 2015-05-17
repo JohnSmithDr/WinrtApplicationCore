@@ -98,7 +98,7 @@ namespace JohnSmithDr.ApplicationCore
             }
         }
 
-        static volatile ulong eventId;
+        static volatile uint eventId;
     }
 
 #endif
