@@ -1,0 +1,1 @@
+These codes are from Windows Universal App Project template, but with some modification.
