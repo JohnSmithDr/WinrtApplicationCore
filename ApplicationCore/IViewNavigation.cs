@@ -26,4 +26,9 @@ namespace JohnSmithDr.ApplicationCore
         Task<TResult> ShowContentDialogAsync<TParam, TResult>(string viewName, TParam parameter, Func<bool, TParam, TResult> resultSelector);
 #endif
     }
+
+    public interface IViewHost
+    {
+        IViewNavigation ViewNavigation { get; }
+    }
 }
