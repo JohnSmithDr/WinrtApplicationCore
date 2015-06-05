@@ -26,6 +26,8 @@ namespace JohnSmithDr.ApplicationCore.Reactive
 
         bool RemoveElement(TElement item);
 
+        void RemoveElements(IEnumerable<TElement> items);
+
         bool RemoveFromGroup(TKey groupKey, TElement item);
 
         void RemoveAllFromGroup(TKey groupKey, IEnumerable<TElement> items);
@@ -147,6 +149,14 @@ namespace JohnSmithDr.ApplicationCore.Reactive
                 removed = group.Remove(item) || removed;
             }
             return removed;
+        }
+
+        public void RemoveElements(IEnumerable<TElement> items)
+        {
+            foreach (var group in this)
+            {
+                group.RemoveAll(items);
+            }
         }
 
         public bool RemoveFromGroup(TKey groupKey, TElement item)
