@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 using Windows.UI.Xaml;
@@ -117,16 +118,6 @@ namespace JohnSmithDr.ApplicationCore
             return NavigateAsync<TResult>(GetViewType(viewName), parameter);
         }
 
-        public void GoBack<TResult>(ITaskContainer<TResult> taskContainer)
-        {
-            GoBack();
-
-            Task.Delay(250).ContinueWith(t =>
-            {
-                taskContainer.TaskSource.TrySetCanceled();
-            });
-        }
-
         public void GoBack<TResult>(ITaskContainer<TResult> taskContainer, TResult result)
         {
             GoBack();
@@ -137,15 +128,30 @@ namespace JohnSmithDr.ApplicationCore
             });
         }
 
-        public void GoBack<TResult>(ITaskContainer<TResult> taskContainer, Exception error)
-        {
-            GoBack();
+#if WINDOWS_PHONE_APP
 
-            Task.Delay(250).ContinueWith(t =>
-            {
-                taskContainer.TaskSource.TrySetException(error);
-            });
+        public Task<bool> ShowContentDialogAsync(string viewName, object parameter)
+        {
+            return ShowContentDialogAsync(viewName, parameter, (r, b) => r);
         }
+
+        public async Task<TResult> ShowContentDialogAsync<TParam, TResult>(string viewName, TParam parameter, Func<bool, TParam, TResult> resultSelector)
+        {
+            try
+            {
+                var type = GetViewType(viewName);
+                var dialog = Activator.CreateInstance(type) as ContentDialog;
+                dialog.DataContext = parameter;
+                var result = await dialog.ShowAsync();
+                return resultSelector.Invoke(result == ContentDialogResult.Primary, parameter);
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+            }
+            return resultSelector.Invoke(false, parameter);
+        }
+#endif
 
         #endregion
     }

@@ -17,10 +17,13 @@ namespace JohnSmithDr.ApplicationCore
 
         Task<TResult> NavigateAsync<TResult>(string viewName, object parameter);
 
-        void GoBack<TResult>(ITaskContainer<TResult> taskContainer);
-
         void GoBack<TResult>(ITaskContainer<TResult> taskContainer, TResult result);
 
-        void GoBack<TResult>(ITaskContainer<TResult> taskContainer, Exception error);
+#if WINDOWS_PHONE_APP
+
+        Task<bool> ShowContentDialogAsync(string viewName, object parameter);
+
+        Task<TResult> ShowContentDialogAsync<TParam, TResult>(string viewName, TParam parameter, Func<bool, TParam, TResult> resultSelector);
+#endif
     }
 }
