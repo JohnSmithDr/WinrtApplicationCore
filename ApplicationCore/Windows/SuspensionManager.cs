@@ -11,11 +11,11 @@ using Windows.UI.Xaml.Controls;
 namespace Windows.ApplicationModel
 {
     /// <summary>
-    /// SuspensionManager 捕获全局会话状态以简化应用程序的
-    /// 进程生命期管理。  请注意会话状态在许多条件下将自动清除，
-    /// 因此应该只用于存储方便
-    /// 在会话之间传递，但在应用程序崩溃时应放弃
-    /// 升级时应丢弃的信息。
+    /// SuspensionManager captures global session state to simplify process lifetime management
+    /// for an application.  Note that session state will be automatically cleared under a variety
+    /// of conditions and should only be used to store information that would be convenient to
+    /// carry across sessions, but that should be discarded when an application crashes or is
+    /// upgraded.
     /// </summary>
     internal sealed class SuspensionManager
     {
@@ -24,11 +24,11 @@ namespace Windows.ApplicationModel
         private const string sessionStateFilename = "_sessionState.xml";
 
         /// <summary>
-        /// 提供对当前会话的全局会话状态的访问。  此状态
-        /// 由 <see cref="SaveAsync"/> 序列化并由
-        /// <see cref="RestoreAsync"/> 还原，因此这些值必须可由
-        /// <see cref="DataContractSerializer"/> 序列化且应尽可能紧凑。  强烈建议使用
-        /// 字符串和其他自包含数据类型。
+        /// Provides access to global session state for the current session.  This state is
+        /// serialized by <see cref="SaveAsync"/> and restored by
+        /// <see cref="RestoreAsync"/>, so values must be serializable by
+        /// <see cref="DataContractSerializer"/> and should be as compact as possible.  Strings
+        /// and other self-contained data types are strongly recommended.
         /// </summary>
         public static Dictionary<string, object> SessionState
         {
@@ -36,9 +36,9 @@ namespace Windows.ApplicationModel
         }
 
         /// <summary>
-        /// 读取和写入会话状态时向 <see cref="DataContractSerializer"/> 提供的
-        /// 自定义类型的列表。  最初为空，可能会
-        /// 添加其他类型以自定义序列化进程。
+        /// List of custom types provided to the <see cref="DataContractSerializer"/> when
+        /// reading and writing session state.  Initially empty, additional types may be
+        /// added to customize the serialization process.
         /// </summary>
         public static List<Type> KnownTypes
         {
@@ -46,17 +46,17 @@ namespace Windows.ApplicationModel
         }
 
         /// <summary>
-        /// 保存当前 <see cref="SessionState"/>。  任何 <see cref="Frame"/> 实例
-        /// (已向 <see cref="RegisterFrame"/> 注册)都还将保留其当前的
-        /// 导航堆栈，从而使其活动 <see cref="Page"/> 可以
-        /// 保存其状态。
+        /// Save the current <see cref="SessionState"/>.  Any <see cref="Frame"/> instances
+        /// registered with <see cref="RegisterFrame"/> will also preserve their current
+        /// navigation stack, which in turn gives their active <see cref="Page"/> an opportunity
+        /// to save its state.
         /// </summary>
-        /// <returns>反映会话状态保存时间的异步任务。</returns>
+        /// <returns>An asynchronous task that reflects when session state has been saved.</returns>
         public static async Task SaveAsync()
         {
             try
             {
-                // 保存所有已注册框架的导航状态
+                // Save the navigation state for all registered frames
                 foreach (var weakFrameReference in _registeredFrames)
                 {
                     Frame frame;
@@ -66,13 +66,12 @@ namespace Windows.ApplicationModel
                     }
                 }
 
-                // 以同步方式序列化会话状态以避免对共享
-                // 状态
+                // Serialize the session state synchronously to avoid asynchronous access to shared state
                 MemoryStream sessionData = new MemoryStream();
                 DataContractSerializer serializer = new DataContractSerializer(typeof(Dictionary<string, object>), _knownTypes);
                 serializer.WriteObject(sessionData, _sessionState);
 
-                // 获取 SessionState 文件的输出流并以异步方式写入状态
+                // Get an output stream for the SessionState file and write the state asynchronously
                 StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(sessionStateFilename, CreationCollisionOption.ReplaceExisting);
                 using (Stream fileStream = await file.OpenStreamForWriteAsync())
                 {
@@ -87,32 +86,30 @@ namespace Windows.ApplicationModel
         }
 
         /// <summary>
-        /// 还原之前保存的 <see cref="SessionState"/>。  任何 <see cref="Frame"/> 实例
-        /// (已向 <see cref="RegisterFrame"/> 注册)都还将还原其先前的导航
-        /// 状态，从而使其活动 <see cref="Page"/> 可以还原其
-        /// 状态。
+        /// Restores previously saved <see cref="SessionState"/>.  Any <see cref="Frame"/> instances
+        /// registered with <see cref="RegisterFrame"/> will also restore their prior navigation
+        /// state, which in turn gives their active <see cref="Page"/> an opportunity restore its
+        /// state.
         /// </summary>
-        /// <param name="sessionBaseKey">标识会话类型的可选密钥。
-        /// 这可用于区分多个应用程序启动方案。</param>
-        /// <returns>反映何时读取会话状态的异步任务。
-        /// 在此任务完成之前，不应依赖 <see cref="SessionState"/>
-        /// 完成。</returns>
+        /// <returns>An asynchronous task that reflects when session state has been read.  The
+        /// content of <see cref="SessionState"/> should not be relied upon until this task
+        /// completes.</returns>
         public static async Task RestoreAsync(String sessionBaseKey = null)
         {
             _sessionState = new Dictionary<String, Object>();
 
             try
             {
-                // 获取 SessionState 文件的输入流
+                // Get the input stream for the SessionState file
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(sessionStateFilename);
                 using (IInputStream inStream = await file.OpenSequentialReadAsync())
                 {
-                    // 反序列化会话状态
+                    // Deserialize the Session State
                     DataContractSerializer serializer = new DataContractSerializer(typeof(Dictionary<string, object>), _knownTypes);
                     _sessionState = (Dictionary<string, object>)serializer.ReadObject(inStream.AsStreamForRead());
                 }
 
-                // 将任何已注册框架还原为其已保存状态
+                // Restore any registered frames to their saved state
                 foreach (var weakFrameReference in _registeredFrames)
                 {
                     Frame frame;
@@ -138,19 +135,17 @@ namespace Windows.ApplicationModel
         private static List<WeakReference<Frame>> _registeredFrames = new List<WeakReference<Frame>>();
 
         /// <summary>
-        /// 注册 <see cref="Frame"/> 实例以允许将其导航历史记录保存到
-        /// <see cref="SessionState"/> 并从中还原。  如果框架将参与会话状态管理，
-        /// 则应在创建框架后立即注册。  在
-        /// 注册时，如果已还原指定键的状态，
-        /// 则将立即还原导航历史记录。
-        /// <see cref="RestoreAsync"/> 还将还原导航历史记录。
+        /// Registers a <see cref="Frame"/> instance to allow its navigation history to be saved to
+        /// and restored from <see cref="SessionState"/>.  Frames should be registered once
+        /// immediately after creation if they will participate in session state management.  Upon
+        /// registration if state has already been restored for the specified key
+        /// the navigation history will immediately be restored.  Subsequent invocations of
+        /// <see cref="RestoreAsync"/> will also restore navigation history.
         /// </summary>
-        /// <param name="frame">其导航历史记录应由
+        /// <param name="frame">An instance whose navigation history should be managed by
         /// <see cref="SuspensionManager"/></param>
-        /// <param name="sessionStateKey"><see cref="SessionState"/> 的唯一键，用于
-        /// 存储与导航相关的信息。</param>
-        /// <param name="sessionBaseKey">标识会话类型的可选密钥。
-        /// 这可用于区分多个应用程序启动方案。</param>
+        /// <param name="sessionStateKey">A unique key into <see cref="SessionState"/> used to
+        /// store navigation-related information.</param>
         public static void RegisterFrame(Frame frame, String sessionStateKey, String sessionBaseKey = null)
         {
             if (frame.GetValue(FrameSessionStateKeyProperty) != null)
@@ -169,26 +164,25 @@ namespace Windows.ApplicationModel
                 sessionStateKey = sessionBaseKey + "_" + sessionStateKey;
             }
 
-            // 使用依赖项属性可会话键与框架相关联，并记录其
-            // 导航状态应托管的框架
+            // Use a dependency property to associate the session key with a frame, 
+            // and keep a list of frames whose navigation state should be managed
             frame.SetValue(FrameSessionStateKeyProperty, sessionStateKey);
             _registeredFrames.Add(new WeakReference<Frame>(frame));
 
-            // 查看导航状态是否可还原
+            // Check to see if navigation state can be restored
             RestoreFrameNavigationState(frame);
         }
 
         /// <summary>
-        /// 解除之前由 <see cref="RegisterFrame"/> 注册的 <see cref="Frame"/>
-        /// 与 <see cref="SessionState"/> 的关联。  之前捕获的任何导航状态都将
-        /// 已移除。
+        /// Disassociates a <see cref="Frame"/> previously registered by <see cref="RegisterFrame"/>
+        /// from <see cref="SessionState"/>.  Any navigation state previously captured will be
+        /// removed.
         /// </summary>
-        /// <param name="frame">其导航历史记录不应再
-        /// 托管。</param>
+        /// <param name="frame">An instance whose navigation history should no longer be managed.</param>
         public static void UnregisterFrame(Frame frame)
         {
-            // 移除会话状态并移除框架列表中其导航
-            // 状态将被保存的框架(以及无法再访问的任何弱引用)
+            // Remove session state and remove the frame from the list of frames whose navigation
+            // state will be saved (along with any weak references that are no longer reachable)
             SessionState.Remove((String)frame.GetValue(FrameSessionStateKeyProperty));
             _registeredFrames.RemoveAll((weakFrameReference) =>
             {
@@ -198,18 +192,18 @@ namespace Windows.ApplicationModel
         }
 
         /// <summary>
-        /// 为与指定的 <see cref="Frame"/> 相关联的会话状态提供存储。
-        /// 之前已向 <see cref="RegisterFrame"/> 注册的框架已自动
-        /// 保存其会话状态且还原为全局
-        /// <see cref="SessionState"/> 的一部分。  未注册的框架具有
-        /// 在还原已从导航缓存中丢弃的页面时仍然有用的
-        /// 导航缓存。
+        /// Provides storage for session state associated with the specified <see cref="Frame"/>.
+        /// Frames that have been previously registered with <see cref="RegisterFrame"/> have
+        /// their session state saved and restored automatically as a part of the global
+        /// <see cref="SessionState"/>.  Frames that are not registered have transient state
+        /// that can still be useful when restoring pages that have been discarded from the
+        /// navigation cache.
         /// </summary>
-        /// <remarks>应用程序可能决定依靠 <see cref="NavigationHelper"/> 管理
-        /// 特定于页面的状态，而非直接使用框架会话状态。</remarks>
-        /// <param name="frame">需要会话状态的实例。</param>
-        /// <returns>状态集合受限于与
-        /// <see cref="SessionState"/>。</returns>
+        /// <remarks>Apps may choose to rely on <see cref="LayoutAwarePage"/> to manage
+        /// page-specific state instead of working with frame session state directly.</remarks>
+        /// <param name="frame">The instance for which session state is desired.</param>
+        /// <returns>A collection of state subject to the same serialization mechanism as
+        /// <see cref="SessionState"/>.</returns>
         public static Dictionary<String, Object> SessionStateForFrame(Frame frame)
         {
             var frameState = (Dictionary<String, Object>)frame.GetValue(FrameSessionStateProperty);
@@ -219,7 +213,7 @@ namespace Windows.ApplicationModel
                 var frameSessionKey = (String)frame.GetValue(FrameSessionStateKeyProperty);
                 if (frameSessionKey != null)
                 {
-                    // 已注册框架反映相应的会话状态
+                    // Registered frames reflect the corresponding session state
                     if (!_sessionState.ContainsKey(frameSessionKey))
                     {
                         _sessionState[frameSessionKey] = new Dictionary<String, Object>();
@@ -228,7 +222,7 @@ namespace Windows.ApplicationModel
                 }
                 else
                 {
-                    // 未注册框架具有瞬时状态
+                    // Frames that aren't registered have transient state
                     frameState = new Dictionary<String, Object>();
                 }
                 frame.SetValue(FrameSessionStateProperty, frameState);
@@ -251,6 +245,7 @@ namespace Windows.ApplicationModel
             frameState["Navigation"] = frame.GetNavigationState();
         }
     }
+
     public class SuspensionManagerException : Exception
     {
         public SuspensionManagerException()

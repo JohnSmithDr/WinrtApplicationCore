@@ -16,28 +16,46 @@ namespace Windows.ApplicationModel
 
         private Frame Frame { get { return this.Page.Frame; } }
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="NavigationManager"/> class.
+        /// </summary>
+        /// <param name="page">A reference to the current page used for navigation.  
+        /// This reference allows for frame manipulation and to ensure that keyboard 
+        /// navigation requests only occur when the page is occupying the entire window.</param>
         public NavigationManager(Page page)
         {
             this.Page = page;
 
+            // When this page is part of the visual tree make two changes:
+            // 1) Map application view state to visual state for the page
+            // 2) Handle keyboard and mouse navigation requests
             this.Page.Loaded += (sender, e) =>
             {
 #if WINDOWS_PHONE_APP
                 Windows.Phone.UI.Input.HardwareButtons.BackPressed += OnHardwareButtonsBackPressed;
 #else
-                // 仅当占用整个窗口时，键盘和鼠标导航才适用
+                // Keyboard and mouse navigation only apply when occupying the entire window
                 if (this.Page.ActualHeight == Window.Current.Bounds.Height &&
                     this.Page.ActualWidth == Window.Current.Bounds.Width)
                 {
-                    // 直接侦听窗口，因此无需焦点
+                    // Listen to the window directly so focus isn't required
                     Window.Current.CoreWindow.Dispatcher.AcceleratorKeyActivated +=
                         OnCoreDispatcherAcceleratorKeyActivated;
                     Window.Current.CoreWindow.PointerPressed +=
                         this.OnCoreWindowPointerPressed;
                 }
 #endif
+
+                this.GoBackCommand = new RelayCommand(
+                    () => this.GoBack(),
+                    () => this.CanGoBack());
+
+                this.GoForwardCommand = new RelayCommand(
+                    () => this.GoForward(),
+                    () => this.CanGoForward());
             };
 
+            // Undo the same changes when the page is no longer visible
             this.Page.Unloaded += (sender, e) =>
             {
 #if WINDOWS_PHONE_APP
@@ -61,16 +79,20 @@ namespace Windows.ApplicationModel
                 this.GoBackCommand.Execute(null);
             }
         }
-#endif
+#else
 
-#if WINDOWS_APP
-
+        /// <summary>
+        /// Invoked on every keystroke, including system keys such as Alt key combinations, when
+        /// this page is active and occupies the entire window.  Used to detect keyboard navigation
+        /// between pages even when the page itself doesn't have focus.
+        /// </summary>
+        /// <param name="sender">Instance that triggered the event.</param>
+        /// <param name="e">Event data describing the conditions that led to the event.</param>
         private void OnCoreDispatcherAcceleratorKeyActivated(CoreDispatcher sender, AcceleratorKeyEventArgs e)
         {
             var virtualKey = e.VirtualKey;
 
-            // 仅当按向左、向右或专用上一页或下一页键时才进一步
-            // 调查
+            // Only investigate further when Left, Right, or the dedicated Previous or Next keys are pressed
             if ((e.EventType == CoreAcceleratorKeyEventType.SystemKeyDown ||
                 e.EventType == CoreAcceleratorKeyEventType.KeyDown) &&
                 (virtualKey == VirtualKey.Left || virtualKey == VirtualKey.Right ||
@@ -87,29 +109,36 @@ namespace Windows.ApplicationModel
                 if (((int)virtualKey == 166 && noModifiers) ||
                     (virtualKey == VirtualKey.Left && onlyAlt))
                 {
-                    // 在按上一页键或 Alt+向左键时向后导航
+                    // When the previous key or Alt+Left are pressed navigate back
                     e.Handled = true;
                     this.GoBackCommand.Execute(null);
                 }
                 else if (((int)virtualKey == 167 && noModifiers) ||
                     (virtualKey == VirtualKey.Right && onlyAlt))
                 {
-                    // 在按下一页键或 Alt+向右键时向前导航
+                    // When the next key or Alt+Right are pressed navigate forward
                     e.Handled = true;
                     this.GoForwardCommand.Execute(null);
                 }
             }
         }
 
+        /// <summary>
+        /// Invoked on every mouse click, touch screen tap, or equivalent interaction when this
+        /// page is active and occupies the entire window.  Used to detect browser-style next and
+        /// previous mouse button clicks to navigate between pages.
+        /// </summary>
+        /// <param name="sender">Instance that triggered the event.</param>
+        /// <param name="e">Event data describing the conditions that led to the event.</param>
         private void OnCoreWindowPointerPressed(CoreWindow sender, PointerEventArgs e)
         {
             var properties = e.CurrentPoint.Properties;
 
-            // 忽略与鼠标左键、右键和中键的键关联
+            // Ignore button chords with the left, right, and middle buttons
             if (properties.IsLeftButtonPressed || properties.IsRightButtonPressed ||
                 properties.IsMiddleButtonPressed) return;
 
-            // 如果按下后退或前进(但不是同时)，则进行相应导航
+            // If back or foward are pressed (but not both) navigate appropriately
             bool backPressed = properties.IsXButton1Pressed;
             bool forwardPressed = properties.IsXButton2Pressed;
             if (backPressed ^ forwardPressed)
@@ -123,31 +152,30 @@ namespace Windows.ApplicationModel
 
         #region GoBackCommand
 
-        public ICommand GoBackCommand
-        {
-            get
-            {
-                if (_goBackCommand == null)
-                {
-                    _goBackCommand = new RelayCommand(
-                        () => this.GoBack(),
-                        () => this.CanGoBack());
-                }
-                return _goBackCommand;
-            }
-            set
-            {
-                _goBackCommand = value;
-            }
-        }
+        /// <summary>
+        /// Used to bind to the back Button's Command property for navigating to the 
+        /// most recent item in back navigation history, if a Frame manages its own 
+        /// navigation history.
+        /// </summary>
+        public ICommand GoBackCommand { get; set; }
 
-        ICommand _goBackCommand;
-
+        /// <summary>
+        /// Virtual method used by the <see cref="GoBackCommand"/> property
+        /// to determine if the <see cref="Frame"/> can go back.
+        /// </summary>
+        /// <returns>
+        /// true if the <see cref="Frame"/> has at least one entry 
+        /// in the back navigation history.
+        /// </returns>
         public virtual bool CanGoBack()
         {
             return this.Frame != null && this.Frame.CanGoBack;
         }
 
+        /// <summary>
+        /// Virtual method used by the <see cref="GoBackCommand"/> property
+        /// to invoke the <see cref="Windows.UI.Xaml.Controls.Frame.GoBack"/> method.
+        /// </summary>
         public virtual void GoBack()
         {
             if (this.Frame != null && this.Frame.CanGoBack) this.Frame.GoBack();
@@ -157,27 +185,29 @@ namespace Windows.ApplicationModel
 
         #region GoForwardCommand
 
-        public ICommand GoForwardCommand
-        {
-            get
-            {
-                if (_goForwardCommand == null)
-                {
-                    _goForwardCommand = new RelayCommand(
-                        () => this.GoForward(),
-                        () => this.CanGoForward());
-                }
-                return _goForwardCommand;
-            }
-        }
+        /// <summary>
+        /// Used for navigating to the most recent item in the forward navigation history, 
+        /// if a Frame manages its own navigation history.
+        /// </summary>
+        public ICommand GoForwardCommand { get; set; }
 
-        ICommand _goForwardCommand;
-
+        /// <summary>
+        /// Virtual method used by the <see cref="GoForwardCommand"/> property
+        /// to determine if the <see cref="Frame"/> can go forward.
+        /// </summary>
+        /// <returns>
+        /// true if the <see cref="Frame"/> has at least one entry 
+        /// in the forward navigation history.
+        /// </returns>
         public virtual bool CanGoForward()
         {
             return this.Frame != null && this.Frame.CanGoForward;
         }
 
+        /// <summary>
+        /// Virtual method used by the <see cref="GoForwardCommand"/> property
+        /// to invoke the <see cref="Windows.UI.Xaml.Controls.Frame.GoForward"/> method.
+        /// </summary>
         public virtual void GoForward()
         {
             if (this.Frame != null && this.Frame.CanGoForward) this.Frame.GoForward();
@@ -189,10 +219,30 @@ namespace Windows.ApplicationModel
 
         private String _pageKey;
 
+        /// <summary>
+        /// Register this event on the current page to populate the page
+        /// with content passed during navigation as well as any saved
+        /// state provided when recreating a page from a prior session.
+        /// </summary>
         public event LoadStateEventHandler LoadState;
 
+        /// <summary>
+        /// Register this event on the current page to preserve
+        /// state associated with the current page in case the
+        /// application is suspended or the page is discarded from
+        /// the navigaqtion cache.
+        /// </summary>
         public event SaveStateEventHandler SaveState;
 
+        /// <summary>
+        /// Invoked when this page is about to be displayed in a Frame.  
+        /// This method calls <see cref="LoadState"/>, where all page specific
+        /// navigation and process lifetime management logic should be placed.
+        /// </summary>
+        /// <param name="e">
+        /// Event data that describes how this page was reached.
+        /// The Parameter property provides the group to be displayed.
+        /// </param>
         public void OnNavigatedTo(NavigationEventArgs e)
         {
             var frameState = SuspensionManager.SessionStateForFrame(this.Frame);
@@ -200,8 +250,7 @@ namespace Windows.ApplicationModel
 
             if (e.NavigationMode == NavigationMode.New)
             {
-                // 在向导航堆栈添加新页时清除向前导航的
-                // 现有状态
+                // Clear existing state for forward navigation when adding a new page to the navigation stack
                 var nextPageKey = this._pageKey;
                 int nextPageIndex = this.Frame.BackStackDepth;
                 while (frameState.Remove(nextPageKey))
@@ -210,7 +259,7 @@ namespace Windows.ApplicationModel
                     nextPageKey = "Page-" + nextPageIndex;
                 }
 
-                // 将导航参数传递给新页
+                // Pass the navigation parameter to the new page
                 if (this.LoadState != null)
                 {
                     this.LoadState(this, new LoadStateEventArgs(e.Parameter, null));
@@ -218,9 +267,9 @@ namespace Windows.ApplicationModel
             }
             else
             {
-                // 通过将相同策略用于加载挂起状态并从缓存重新创建
-                // 放弃的页，将导航参数和保留页状态传递
-                // 给页
+                // Pass the navigation parameter and preserved page state to the page, using
+                // the same strategy for loading suspended state and recreating pages discarded
+                // from cache.
                 if (this.LoadState != null)
                 {
                     this.LoadState(this, new LoadStateEventArgs(e.Parameter, (Dictionary<String, Object>)frameState[this._pageKey]));
@@ -228,6 +277,15 @@ namespace Windows.ApplicationModel
             }
         }
 
+        /// <summary>
+        /// Invoked when this page will no longer be displayed in a Frame.
+        /// This method calls <see cref="SaveState"/>, where all page specific
+        /// navigation and process lifetime management logic should be placed.
+        /// </summary>
+        /// <param name="e">
+        /// Event data that describes how this page was reached.
+        /// The Parameter property provides the group to be displayed.
+        /// </param>
         public void OnNavigatedFrom(NavigationEventArgs e)
         {
             var frameState = SuspensionManager.SessionStateForFrame(this.Frame);
@@ -242,10 +300,19 @@ namespace Windows.ApplicationModel
         #endregion
     }
 
+    /// <summary>
+    /// Represents the method that will handle the <see cref="NavigationManager.LoadState"/>event.
+    /// </summary>
     public delegate void LoadStateEventHandler(object sender, LoadStateEventArgs e);
 
+    /// <summary>
+    /// Represents the method that will handle the <see cref="NavigationManager.SaveState"/>event.
+    /// </summary>
     public delegate void SaveStateEventHandler(object sender, SaveStateEventArgs e);
 
+    /// <summary>
+    /// Class used to hold the event data required when a page attempts to load state.
+    /// </summary>
     public class LoadStateEventArgs : EventArgs
     {
         public Object NavigationParameter { get; private set; }
@@ -260,6 +327,9 @@ namespace Windows.ApplicationModel
         }
     }
 
+    /// <summary>
+    /// Class used to hold the event data required when a page attempts to save state.
+    /// </summary>
     public class SaveStateEventArgs : EventArgs
     {
         public Dictionary<string, Object> PageState { get; private set; }
