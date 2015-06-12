@@ -65,7 +65,7 @@ namespace JohnSmithDr.ApplicationCore
             get { return Window.Current.Content as Frame; }
         }
 
-        #region IViewLocator
+        #region IViewNavigation
 
         public bool CanGoBack
         {
@@ -156,4 +156,20 @@ namespace JohnSmithDr.ApplicationCore
         #endregion
     }
 
+    public static class ApplicationNavigationServiceExtensions
+    {
+        public static IViewNavigation CreateDefaultNavigation(this Windows.UI.Xaml.Application app)
+        {
+            return new NavigationService(app.GetType().Namespace + ".Views");
+        }
+
+        public static IViewNavigation GetNavigation(this Windows.UI.Xaml.Application app)
+        {
+            if (app is IViewHost)
+            {
+                return (app as IViewHost).ViewNavigation;
+            }
+            return null;
+        }
+    }
 }
